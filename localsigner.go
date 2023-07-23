@@ -1,4 +1,4 @@
-package main
+package localsigner
 
 import (
 	"crypto/rsa"
@@ -10,7 +10,8 @@ import (
 	"github.com/fullsailor/pkcs7"
 )
 
-func readPublicKey(pubKey string) (*x509.Certificate, error) {
+// ReadPublicKey takes a path to a public key and returns an x509.Certificate.
+func ReadPublicKey(pubKey string) (*x509.Certificate, error) {
 	certPEM, err := os.ReadFile(pubKey)
 	if err != nil {
 		return nil, err
@@ -29,7 +30,8 @@ func readPublicKey(pubKey string) (*x509.Certificate, error) {
 	return cert, nil
 }
 
-func readPrivateKey(prvKey string) (*rsa.PrivateKey, error) {
+// ReadPrivateKey takes a path to a private key and returns an rsa.PrivateKey.
+func ReadPrivateKey(prvKey string) (*rsa.PrivateKey, error) {
 	keyData, err := os.ReadFile(prvKey)
 	if err != nil {
 		return nil, err
@@ -56,38 +58,22 @@ func readPrivateKey(prvKey string) (*rsa.PrivateKey, error) {
 	return rsaKey, nil
 }
 
-func main() {
-	data := []byte("this is some data to be signed")
-
-	pubKey, err := readPublicKey("signer.crt")
+// SignPKCCS7 create PKCS#7 signature
+func SignPKCS7(certificate *x509.Certificate, privateKey *rsa.PrivateKey, contents []byte) ([]byte, error) {
+	toBeSigned, err := pkcs7.NewSignedData(contents)
 	if err != nil {
-		fmt.Println("failed to read public key", err)
-		os.Exit(1)
+		return nil, err
 	}
 
-	prvKey, err := readPrivateKey("signer.key")
-	if err != nil {
-		fmt.Println("failed to read private key", err)
-		os.Exit(1)
-	}
-
-	toBeSigned, err := pkcs7.NewSignedData(data)
-	if err != nil {
-		fmt.Println("failed to create signed data", err)
-		os.Exit(1)
-	}
-
-	if err := toBeSigned.AddSigner(pubKey, prvKey, pkcs7.SignerInfoConfig{}); err != nil {
-		fmt.Println("failed to add signer", err)
-		os.Exit(1)
+	if err := toBeSigned.AddSigner(certificate, privateKey, pkcs7.SignerInfoConfig{}); err != nil {
+		return nil, err
 	}
 	toBeSigned.Detach()
 
 	signature, err := toBeSigned.Finish()
 	if err != nil {
-		fmt.Println(err)
-		os.Exit(1)
+		return nil, err
 	}
 
-	fmt.Printf("Signature: %x\n", signature)
+	return signature, nil
 }
